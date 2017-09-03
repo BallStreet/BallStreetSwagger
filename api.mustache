@@ -2,6 +2,8 @@
 {{>licenseInfo}}
 
 import { Observable } from 'rxjs/Observable';
+import 'rxjs/add/observable/dom/ajax';
+import 'rxjs/add/operator/map';
 import * as url from "url";
 import { Configuration } from "./configuration";
 
@@ -232,7 +234,7 @@ export const {{classname}}Fp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options?: any): (basePath?: string) => Promise<{{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}any{{/returnType}}> {
+        {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options?: any): (basePath?: string) => Observable<{{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}any{{/returnType}}> {
             const args = {{classname}}ParamCreator(configuration).{{nickname}}({{#allParams}}{{paramName}}, {{/allParams}}options);
             return (basePath: string = BASE_PATH) => {
                 return Observable.ajax(args)
@@ -244,7 +246,6 @@ export const {{classname}}Fp = function(configuration?: Configuration) {
                     // } else {
                     //     throw response;
                     // }
-                });
             };
         },
     {{/operation}}
