@@ -1,7 +1,11 @@
 // tslint:disable
 {{>licenseInfo}}
 
+import { Observable } from 'rxjs/Observable';
+import { AjaxRequest, AjaxResponse } from 'rxjs/observable/dom/AjaxObservable';
+
 export interface ConfigurationParameters {
+    ajax?: (request: AjaxRequest) => Observable<AjaxResponse>;
     apiKey?: string | ((name: string) => string);
     username?: string;
     password?: string;
@@ -44,6 +48,11 @@ export class Configuration {
      * @memberof Configuration
      */
     basePath?: string;
+    /**
+     * override ajax request generator
+     * @memberof Configuration
+     */
+    ajax?: (request: AjaxRequest) => Observable<AjaxResponse>;    
 
     constructor(param: ConfigurationParameters = {}) {
         this.apiKey = param.apiKey;
@@ -51,5 +60,6 @@ export class Configuration {
         this.password = param.password;
         this.accessToken = param.accessToken;
         this.basePath = param.basePath;
+        this.ajax = param.ajax;
     }
 }

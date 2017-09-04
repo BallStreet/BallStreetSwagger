@@ -4,8 +4,11 @@
 import { Observable } from 'rxjs/Observable';
 import 'rxjs/add/observable/dom/ajax';
 import 'rxjs/add/operator/map';
+import { AjaxRequest } from 'rxjs/observable/dom/AjaxObservable';
 import * as url from "url";
 import { Configuration } from "./configuration";
+
+export type RequestOptions = AjaxRequest & { query?: any };
 
 const BASE_PATH = "{{{basePath}}}".replace(/\/+$/, "");
 
@@ -26,12 +29,11 @@ export const COLLECTION_FORMATS = {
  * @class BaseAPI
  */
 export class BaseAPI {
-    protected configuration: Configuration;
+    protected configuration: () => Observable<Configuration>;
 
-    constructor(configuration?: Configuration, protected basePath: string = BASE_PATH) {
+    constructor(configuration?: () => Observable<Configuration>) {
         if (configuration) {
             this.configuration = configuration;
-            this.basePath = configuration.basePath || this.basePath;
         }
     }
 };
@@ -50,21 +52,21 @@ export class RequiredError extends Error {
 }
 
 export class Api {
-    protected configuration: Configuration;
+    protected configuration: () => Observable<Configuration>;
 
-    constructor(configuration?: Configuration, protected basePath: string = BASE_PATH) {
+    constructor(configuration?: () => Observable<Configuration>) {
         if (configuration) {
             this.configuration = configuration;
-            this.basePath = configuration.basePath || this.basePath;
         }
         {{#apiInfo}}{{#apis}}{{#operations}}
-        this.{{classVarName}} = new {{classname}}(configuration, basePath);{{/operations}}{{/apis}}{{/apiInfo}}
+        this.{{classVarName}} = new {{classname}}(configuration);{{/operations}}{{/apis}}{{/apiInfo}}
     }
     {{#apiInfo}}{{#apis}}{{#operations}}
     public {{classVarName}}: {{classname}};{{/operations}}{{/apis}}{{/apiInfo}}
 }
 
 export var api: Api;
+export function setApi(newApi: Api) { api = newApi; }
 
 {{#models}}
 {{#model}}{{#isEnum}}{{>modelEnum}}{{/isEnum}}{{^isEnum}}{{>modelGeneric}}{{/isEnum}}{{/model}}
@@ -89,7 +91,7 @@ export const {{classname}}ParamCreator = function (configuration?: Configuration
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options: AjaxRequest = {}): AjaxRequest {
+        {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options: RequestOptions = {}): AjaxRequest {
     {{#allParams}}
     {{#required}}
             // verify required parameter '{{paramName}}' is not null or undefined
@@ -101,7 +103,7 @@ export const {{classname}}ParamCreator = function (configuration?: Configuration
             const path = `{{{path}}}`{{#pathParams}}
                 .replace(`{${"{{baseName}}"}}`, String({{paramName}})){{/pathParams}};
             const urlObj = url.parse(path, true);                
-            const requestOptions: AjaxRequest = { crossDomain: true, responseType: 'text', method: '{{httpMethod}}', ...options };
+            const requestOptions: RequestOptions = { crossDomain: true, responseType: 'text', method: '{{httpMethod}}', ...options };
             const headerParameter = {} as any;
             const queryParameter = {} as any;
     {{#hasFormParams}}
@@ -237,7 +239,7 @@ export const {{classname}}ParamCreator = function (configuration?: Configuration
  * {{{description}}}{{/description}}
  * @export
  */
-export const {{classname}}Fp = function(configuration?: Configuration) {
+export const {{classname}}Fp = function(configuration: () => Observable<Configuration>) {
     return {
     {{#operation}}
         /**
@@ -251,48 +253,23 @@ export const {{classname}}Fp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options?: any): (basePath?: string) => Observable<{{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}any{{/returnType}}> {
-            const args = {{classname}}ParamCreator(configuration).{{nickname}}({{#allParams}}{{paramName}}, {{/allParams}}options);
-            return (basePath: string = BASE_PATH) => {
-                return Observable.ajax(args)
-                        .map(raw => <string>raw.response)
-                        .map(json => JSON.parse(json));
-                    //     .map((response) => {
-                    // if (response.status >= 200 && response.status < 300) {
-                    //     return response{{#returnType}}.json(){{/returnType}};
-                    // } else {
-                    //     throw response;
-                    // }
-            };
+        {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options?: any): Observable<{{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}any{{/returnType}}> {
+            return configuration().flatMap(config => {
+                const args = {{classname}}ParamCreator(config).{{nickname}}({{#allParams}}{{paramName}}, {{/allParams}}options);
+                const ajaxFunc = config.ajax || Observable.ajax;
+                return ajaxFunc({ ...args, url: "" + (config && config.basePath) + args.url })
+                       {{#returnType}}.map(raw => <string>raw.response)
+                       .map(json => JSON.parse(json).value as {{{returnType}}}){{/returnType}};
+                //     .map((response) => {
+                // if (response.status >= 200 && response.status < 300) {
+                //     return response{{#returnType}}.json(){{/returnType}};
+                // } else {
+                //     throw response;
+                // }
+            });
         },
     {{/operation}}
     }
-};
-
-/**
- * {{classname}} - factory interface{{#description}}
- * {{&description}}{{/description}}
- * @export
- */
-export const {{classname}}Factory = function (configuration?: Configuration, basePath?: string) {
-    return {
-    {{#operation}}
-        /**
-         * {{&notes}}
-         {{#summary}}
-         * @summary {{&summary}}
-         {{/summary}}
-         {{#allParams}}
-         * @param {{=<% %>=}}{<%dataType%>}<%={{ }}=%> {{^required}}[{{/required}}{{paramName}}{{^required}}]{{/required}} {{description}}
-         {{/allParams}}
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options?: any) {
-            return {{classname}}Fp(configuration).{{nickname}}({{#allParams}}{{paramName}}, {{/allParams}}options)(basePath);
-        },
-    {{/operation}}
-    };
 };
 
 /**
@@ -317,7 +294,7 @@ export class {{classname}} extends BaseAPI {
      * @memberof {{classname}}
      */
     public {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options?: any) {
-        return {{classname}}Fp(this.configuration).{{nickname}}({{#allParams}}{{paramName}}, {{/allParams}}options)(this.basePath);
+        return {{classname}}Fp(this.configuration).{{nickname}}({{#allParams}}{{paramName}}, {{/allParams}}options);
     }
 
     {{/operation}}
