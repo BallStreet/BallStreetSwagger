@@ -259,7 +259,7 @@ export const {{classname}}Fp = function(configuration: () => Observable<Configur
                 const ajaxFunc = config.ajax || Observable.ajax;
                 return ajaxFunc({ ...args, url: "" + (config && config.basePath) + args.url })
                        {{#returnType}}.map(raw => <string>raw.response)
-                       .map(json => JSON.parse(json).value as {{{returnType}}}){{/returnType}};
+                       .map(json => JSON.parse(json) as {{{returnType}}}){{/returnType}};
                 //     .map((response) => {
                 // if (response.status >= 200 && response.status < 300) {
                 //     return response{{#returnType}}.json(){{/returnType}};
@@ -293,8 +293,8 @@ export class {{classname}} extends BaseAPI {
      * @throws {RequiredError}
      * @memberof {{classname}}
      */
-    public {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options?: any) {
-        return {{classname}}Fp(this.configuration).{{nickname}}({{#allParams}}{{paramName}}, {{/allParams}}options);
+    public {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options?: any, configuration?: () => Observable<Configuration>) {
+        return {{classname}}Fp(configuration || this.configuration).{{nickname}}({{#allParams}}{{paramName}}, {{/allParams}}options);
     }
 
     {{/operation}}
