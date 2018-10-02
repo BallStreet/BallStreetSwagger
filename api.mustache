@@ -1,10 +1,9 @@
 // tslint:disable
 {{>licenseInfo}}
 
-import { Observable } from 'rxjs/Observable';
-import 'rxjs/add/observable/dom/ajax';
-import 'rxjs/add/operator/map';
-import { AjaxRequest } from 'rxjs/observable/dom/AjaxObservable';
+import { Observable } from 'rxjs';
+import { AjaxRequest, ajax } from 'rxjs/ajax';
+import { map, flatMap } from 'rxjs/operators';
 import * as url from "url";
 import { Configuration } from "./configuration";
 
@@ -29,12 +28,7 @@ export const COLLECTION_FORMATS = {
  * @class BaseAPI
  */
 export class BaseAPI {
-    protected configuration: () => Observable<Configuration>;
-
-    constructor(configuration?: () => Observable<Configuration>) {
-        if (configuration) {
-            this.configuration = configuration;
-        }
+    constructor(protected configuration: () => Observable<Configuration>) {
     }
 };
 
@@ -45,19 +39,14 @@ export class BaseAPI {
  * @extends {Error}
  */
 export class RequiredError extends Error {
-    name: "RequiredError";
+    name: "RequiredError" = "RequiredError";
     constructor(public field: string, msg?: string) {
         super(msg);
     }
 }
 
 export class Api {
-    protected configuration: () => Observable<Configuration>;
-
-    constructor(configuration?: () => Observable<Configuration>) {
-        if (configuration) {
-            this.configuration = configuration;
-        }
+    constructor(protected configuration: () => Observable<Configuration>) {
         {{#apiInfo}}{{#apis}}{{#operations}}
         this.{{classVarName}} = new {{classname}}(configuration);{{/operations}}{{/apis}}{{/apiInfo}}
     }
@@ -73,7 +62,7 @@ export function setApi(newApi: Api) { api = newApi; }
 {{/models}}
 {{#apiInfo}}{{#apis}}{{#operations}}
 /**
- * {{classname}} - Observable.ajax call parameter creator{{#description}}
+ * {{classname}} - ajax call parameter creator{{#description}}
  * {{&description}}{{/description}}
  * @export
  */
@@ -253,20 +242,18 @@ export const {{classname}}Fp = function(configuration: () => Observable<Configur
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options?: any): Observable<{{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}any{{/returnType}}> {
-            return configuration().flatMap(config => {
-                const args = {{classname}}ParamCreator(config).{{nickname}}({{#allParams}}{{paramName}}, {{/allParams}}options);
-                const ajaxFunc = config.ajax || Observable.ajax;
-                return ajaxFunc({ ...args, url: "" + (config && config.basePath) + args.url })
-                       {{#returnType}}.map(raw => <string>raw.response)
-                       .map(json => JSON.parse(json) as {{{returnType}}}){{/returnType}};
-                //     .map((response) => {
-                // if (response.status >= 200 && response.status < 300) {
-                //     return response{{#returnType}}.json(){{/returnType}};
-                // } else {
-                //     throw response;
-                // }
-            });
+        {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options?: RequestOptions): Observable<{{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}any{{/returnType}}> {
+            return configuration().pipe(
+                flatMap(config => {
+                    const args = {{classname}}ParamCreator(config).{{nickname}}({{#allParams}}{{paramName}}, {{/allParams}}options);
+                    const ajaxFunc = config.ajax || ajax;
+                    return ajaxFunc({ ...args, url: "" + (config && config.basePath) + args.url }){{#returnType}}
+                        .pipe(
+                            map(raw => <string>raw.response),
+                            map(json => json ? JSON.parse(json) as {{{returnType}}} : <any>undefined)
+                        ){{/returnType}};
+                })
+            );
         },
     {{/operation}}
     }
@@ -293,7 +280,7 @@ export class {{classname}} extends BaseAPI {
      * @throws {RequiredError}
      * @memberof {{classname}}
      */
-    public {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options?: any, configuration?: () => Observable<Configuration>) {
+    public {{nickname}}({{#allParams}}{{paramName}}{{^required}}?{{/required}}: {{{dataType}}}, {{/allParams}}options?: RequestOptions, configuration?: () => Observable<Configuration>) {
         return {{classname}}Fp(configuration || this.configuration).{{nickname}}({{#allParams}}{{paramName}}, {{/allParams}}options);
     }
 
